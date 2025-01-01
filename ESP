@@ -1,0 +1,88 @@
+#include <ESP8266WiFi.h>
+#include <Firebase_ESP_Client.h>
+#include <addons/TokenHelper.h>
+
+// WiFi credentials
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
+
+// Firebase project settings
+#define API_KEY "YOUR_FIREBASE_API_KEY"
+#define FIREBASE_PROJECT_ID "YOUR_PROJECT_ID"
+
+// Firebase objects
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+
+void setupWiFi() {
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+  
+  Serial.println("\nConnected to WiFi!");
+}
+
+void setupFirebase() {
+  config.api_key = API_KEY;
+  config.token_status_callback = tokenStatusCallback;
+  
+  auth.user.email = "YOUR_EMAIL@gmail.com";
+  auth.user.password = "YOUR_PASSWORD";
+  
+  Firebase.begin(&config, &auth);
+}
+
+bool getCourtActiveStatus() {
+  if (!Firebase.ready()) {
+    Serial.println("Firebase not ready");
+    return false;
+  }
+
+  String documentPath = "Courts/ouvQh9i3zuXLqmURdWYm";
+  
+  if (Firebase.Firestore.getDocument(&fbdo, FIREBASE_PROJECT_ID, "", documentPath.c_str())) {
+    FirebaseJson json;
+    FirebaseJsonData result;
+    
+    json.setJsonData(fbdo.payload());
+    
+    if (json.get(result, "fields/CourtActive/booleanValue")) {
+      bool courtActive = result.to<bool>();
+      Serial.print("CourtActive value: ");
+      Serial.println(courtActive ? "true" : "false");
+      return courtActive;
+    } else {
+      Serial.println("Failed to parse CourtActive value");
+      return false;
+    }
+  } else {
+    Serial.println("Failed to get document");
+    Serial.println("REASON: " + fbdo.errorReason());
+    return false;
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  setupWiFi();
+  setupFirebase();
+}
+
+void loop() {
+  bool isCourtActive = getCourtActiveStatus();
+  
+  // You can use isCourtActive value here for your logic
+  // For example:
+  if (isCourtActive) {
+    // Do something when court is active
+  } else {
+    // Do something when court is inactive
+  }
+  
+  delay(5000); // Check every 5 seconds
+}
