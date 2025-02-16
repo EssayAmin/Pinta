@@ -1,0 +1,45 @@
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+// To avoid deployment errors, do not call admin.initializeApp() in your code
+
+const db = admin.firestore();
+
+exports.lockCourt = functions.pubsub
+    .schedule("every 1 minutes")  // Change this to your desired schedule
+    .timeZone("Asia/Kuala_Lumpur")  // Ensure it runs in Malaysia Time (UTC+8)
+    .onRun(async (context) => {
+        console.log("✅ Function triggered...");
+
+        // Get the current time in Malaysia Time (UTC+8)
+        const now = new Date();
+        const malaysiaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kuala_Lumpur" }));
+        console.log(`🕒 Malaysia Time: ${malaysiaTime}`);
+
+        try {
+            // Fetch documents where endTime is in the past and booleanField is true
+            const snapshot = await db.collection("Courts")
+                .where("BookEndTime", "<=", admin.firestore.Timestamp.now())  // Firestore stores in UTC
+                .where("CourtActive", "==", true)
+                .get();
+
+            console.log(`📌 Found ${snapshot.size} documents to update.`);
+
+            if (!snapshot.empty) {
+                const batch = db.batch();
+                snapshot.forEach(doc => {
+                    console.log(`🔄 Updating document ID: ${doc.id}`);
+                    batch.update(doc.ref, { CourtActive: false });
+                });
+
+                await batch.commit();
+                console.log(`✅ Successfully updated ${snapshot.size} documents.`);
+            } else {
+                console.log("⚡ No documents need updating.");
+            }
+
+        } catch (error) {
+            console.error("❌ Error updating Firestore:", error);
+        }
+
+        return null;
+    });
